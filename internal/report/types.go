@@ -20,13 +20,14 @@ type ReportMetadata struct {
 
 // ImageRecord captures provenance data for a single container image.
 type ImageRecord struct {
-	Image     string         `json:"image"`
-	Digest    string         `json:"digest,omitempty"`
-	Namespace string         `json:"namespace"`
-	Workload  WorkloadRef    `json:"workload"`
-	Signature *SignatureInfo `json:"signature,omitempty"`
-	SBOM      *SBOMInfo      `json:"sbom,omitempty"`
-	Update    *UpdateInfo    `json:"update,omitempty"`
+	Image      string          `json:"image"`
+	Digest     string          `json:"digest,omitempty"`
+	Namespace  string          `json:"namespace"`
+	Workload   WorkloadRef     `json:"workload"`
+	Signature  *SignatureInfo  `json:"signature,omitempty"`
+	SBOM       *SBOMInfo       `json:"sbom,omitempty"`
+	Provenance *ProvenanceInfo `json:"provenance,omitempty"`
+	Update     *UpdateInfo     `json:"update,omitempty"`
 }
 
 // WorkloadRef identifies the Kubernetes workload that owns a container.
@@ -46,6 +47,12 @@ type SignatureInfo struct {
 type SBOMInfo struct {
 	HasSBOM bool   `json:"hasSBOM"`
 	Format  string `json:"format,omitempty"`
+}
+
+// ProvenanceInfo records SLSA provenance attestation results.
+type ProvenanceInfo struct {
+	HasProvenance bool   `json:"hasProvenance"`
+	PredicateType string `json:"predicateType,omitempty"`
 }
 
 // UpdateInfo records available version updates for an image or chart.
@@ -74,6 +81,7 @@ type ReportSummary struct {
 	SignedImages            int `json:"signedImages"`
 	VerifiedImages          int `json:"verifiedImages"`
 	ImagesWithSBOM          int `json:"imagesWithSBOM"`
+	ImagesWithProvenance    int `json:"imagesWithProvenance"`
 	ImagesWithUpdates       int `json:"imagesWithUpdates"`
 	TotalHelmReleases       int `json:"totalHelmReleases"`
 	HelmReleasesWithUpdates int `json:"helmReleasesWithUpdates"`

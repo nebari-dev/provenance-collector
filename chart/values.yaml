@@ -34,6 +34,8 @@ config:
   skipPrerelease: true
   # Check for SBOM attestations on discovered images.
   checkSBOM: true
+  # Check for SLSA provenance attestations on discovered images.
+  checkProvenance: true
   # Report output type: "pvc" or "configmap".
   reportOutput: "pvc"
   # Filesystem path for PVC-based reports.

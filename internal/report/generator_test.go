@@ -85,6 +85,7 @@ func TestGeneratorReport(t *testing.T) {
 				"nginx:1.27": {HasSBOM: true, Format: "spdx"},
 			},
 		},
+		nil, // provenanceChecker
 	)
 
 	images := []ImageInput{

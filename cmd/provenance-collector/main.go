@@ -111,6 +111,10 @@ func run(ctx context.Context) error {
 	if cfg.CheckSBOM {
 		sbomDisc = verify.NewSBOMDiscoverer()
 	}
+	var provChecker report.ProvenanceChecker
+	if cfg.CheckProvenance {
+		provChecker = verify.NewProvenanceChecker()
+	}
 
 	// --- Generate report ---
 	slog.Info("generating provenance report")
@@ -125,6 +129,7 @@ func run(ctx context.Context) error {
 		updateChecker,
 		sigVerifier,
 		sbomDisc,
+		provChecker,
 	)
 
 	provReport := gen.Generate(ctx, imageInputs, helmSources, nsList)

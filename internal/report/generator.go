@@ -38,6 +38,11 @@ type SBOMDiscoverer interface {
 	Discover(ctx context.Context, imageRef string) (*SBOMInfo, error)
 }
 
+// ProvenanceChecker checks for SLSA provenance attestations.
+type ProvenanceChecker interface {
+	Check(ctx context.Context, imageRef string) (*ProvenanceInfo, error)
+}
+
 // HelmSource provides discovered Helm releases.
 type HelmSource struct {
 	ReleaseName  string
@@ -58,11 +63,12 @@ type GeneratorConfig struct {
 
 // Generator orchestrates image/helm discovery and enrichment into a report.
 type Generator struct {
-	cfg            GeneratorConfig
-	digestResolver DigestResolver
-	updateChecker  UpdateChecker
-	sigVerifier    SignatureVerifier
-	sbomDiscoverer SBOMDiscoverer
+	cfg               GeneratorConfig
+	digestResolver    DigestResolver
+	updateChecker     UpdateChecker
+	sigVerifier       SignatureVerifier
+	sbomDiscoverer    SBOMDiscoverer
+	provenanceChecker ProvenanceChecker
 }
 
 // NewGenerator creates a report Generator with the provided dependencies.
@@ -72,16 +78,18 @@ func NewGenerator(
 	updateChecker UpdateChecker,
 	sigVerifier SignatureVerifier,
 	sbomDiscoverer SBOMDiscoverer,
+	provenanceChecker ProvenanceChecker,
 ) *Generator {
 	if cfg.Concurrency <= 0 {
 		cfg.Concurrency = 10
 	}
 	return &Generator{
-		cfg:            cfg,
-		digestResolver: digestResolver,
-		updateChecker:  updateChecker,
-		sigVerifier:    sigVerifier,
-		sbomDiscoverer: sbomDiscoverer,
+		cfg:               cfg,
+		digestResolver:    digestResolver,
+		updateChecker:     updateChecker,
+		sigVerifier:       sigVerifier,
+		sbomDiscoverer:    sbomDiscoverer,
+		provenanceChecker: provenanceChecker,
 	}
 }
 
@@ -193,6 +201,16 @@ func (g *Generator) processImage(ctx context.Context, input ImageInput) ImageRec
 		}
 	}
 
+	// Check for SLSA provenance
+	if g.provenanceChecker != nil {
+		prov, err := g.provenanceChecker.Check(ctx, input.Image)
+		if err != nil {
+			slog.Warn("failed to check provenance", "image", input.Image, "error", err)
+		} else if prov != nil && prov.HasProvenance {
+			record.Provenance = prov
+		}
+	}
+
 	return record
 }
 
@@ -213,6 +231,9 @@ func (g *Generator) computeSummary(r *ProvenanceReport) ReportSummary {
 		}
 		if img.SBOM != nil && img.SBOM.HasSBOM {
 			s.ImagesWithSBOM++
+		}
+		if img.Provenance != nil && img.Provenance.HasProvenance {
+			s.ImagesWithProvenance++
 		}
 		if img.Update != nil && img.Update.UpdateAvailable {
 			s.ImagesWithUpdates++

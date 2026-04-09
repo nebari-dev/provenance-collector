@@ -26,6 +26,8 @@ type Config struct {
 	SkipPrerelease bool
 	// Whether to check for SBOM attestations on images.
 	CheckSBOM bool
+	// Whether to check for SLSA provenance attestations on images.
+	CheckProvenance bool
 	// Report output type: "pvc" or "configmap".
 	ReportOutput string
 	// File path for PVC-based report output.
@@ -54,6 +56,7 @@ func Load() *Config {
 		CheckUpdates:             envBool("PROVENANCE_CHECK_UPDATES", true),
 		SkipPrerelease:           envBool("PROVENANCE_SKIP_PRERELEASE", true),
 		CheckSBOM:                envBool("PROVENANCE_CHECK_SBOM", true),
+		CheckProvenance:          envBool("PROVENANCE_CHECK_PROVENANCE", true),
 		ReportOutput:             envDefault("PROVENANCE_REPORT_OUTPUT", "pvc"),
 		ReportPath:               envDefault("PROVENANCE_REPORT_PATH", "/reports"),
 		ReportConfigMap:          envDefault("PROVENANCE_REPORT_CONFIGMAP", "provenance-report"),
