@@ -18,6 +18,7 @@ data:
   PROVENANCE_CHECK_PROVENANCE: {{ .Values.config.checkProvenance | quote }}
   PROVENANCE_REPORT_OUTPUT: {{ .Values.config.reportOutput | quote }}
   PROVENANCE_REPORT_PATH: {{ .Values.config.reportPath | quote }}
+  PROVENANCE_REPORT_RETENTION: {{ .Values.config.reportRetention | quote }}
   PROVENANCE_REPORT_CONFIGMAP: {{ .Values.config.reportConfigMap | quote }}
   PROVENANCE_REPORT_CONFIGMAP_NAMESPACE: {{ .Release.Namespace | quote }}
   PROVENANCE_REGISTRY_TIMEOUT: {{ .Values.config.registryTimeout | quote }}

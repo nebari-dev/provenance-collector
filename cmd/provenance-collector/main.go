@@ -141,8 +141,8 @@ func run(ctx context.Context) error {
 		slog.Info("writing report to configmap", "name", cfg.ReportConfigMap, "namespace", cfg.ReportConfigMapNamespace)
 		writer = report.NewConfigMapWriter(client, cfg.ReportConfigMap, cfg.ReportConfigMapNamespace)
 	default:
-		slog.Info("writing report to filesystem", "path", cfg.ReportPath)
-		writer = report.NewPVCWriter(cfg.ReportPath)
+		slog.Info("writing report to filesystem", "path", cfg.ReportPath, "retention", cfg.ReportRetention)
+		writer = report.NewPVCWriter(cfg.ReportPath, cfg.ReportRetention)
 	}
 
 	if err := writer.Write(ctx, provReport); err != nil {

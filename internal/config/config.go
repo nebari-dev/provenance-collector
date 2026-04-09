@@ -34,6 +34,8 @@ type Config struct {
 	ReportOutput string
 	// File path for PVC-based report output.
 	ReportPath string
+	// How long to keep old reports. Negative means keep forever.
+	ReportRetention time.Duration
 	// ConfigMap name for configmap-based report output.
 	ReportConfigMap string
 	// Namespace for ConfigMap report output.
@@ -62,6 +64,7 @@ func Load() *Config {
 		CheckProvenance:          envBool("PROVENANCE_CHECK_PROVENANCE", true),
 		ReportOutput:             envDefault("PROVENANCE_REPORT_OUTPUT", "pvc"),
 		ReportPath:               envDefault("PROVENANCE_REPORT_PATH", "/reports"),
+		ReportRetention:          envDuration("PROVENANCE_REPORT_RETENTION", 7*24*time.Hour),
 		ReportConfigMap:          envDefault("PROVENANCE_REPORT_CONFIGMAP", "provenance-report"),
 		ReportConfigMapNamespace: envDefault("PROVENANCE_REPORT_CONFIGMAP_NAMESPACE", "default"),
 		RegistryTimeout:          envDuration("PROVENANCE_REGISTRY_TIMEOUT", 30*time.Second),
@@ -105,6 +108,9 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 	v := os.Getenv(key)
 	if v == "" {
 		return fallback
+	}
+	if v == "-1" {
+		return -1
 	}
 	d, err := time.ParseDuration(v)
 	if err != nil {

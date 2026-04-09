@@ -37,7 +37,7 @@ func testReport() *ProvenanceReport {
 
 func TestPVCWriter(t *testing.T) {
 	dir := t.TempDir()
-	writer := NewPVCWriter(dir)
+	writer := NewPVCWriter(dir, -1)
 
 	err := writer.Write(context.Background(), testReport())
 	if err != nil {

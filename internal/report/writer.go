@@ -20,12 +20,15 @@ type Writer interface {
 
 // PVCWriter writes reports as JSON files to a filesystem path (typically a PVC mount).
 type PVCWriter struct {
-	basePath string
+	basePath  string
+	retention time.Duration // negative means keep forever
 }
 
 // NewPVCWriter creates a Writer that outputs to the filesystem.
-func NewPVCWriter(basePath string) Writer {
-	return &PVCWriter{basePath: basePath}
+// Reports older than retention are removed after each write.
+// A negative retention disables cleanup.
+func NewPVCWriter(basePath string, retention time.Duration) Writer {
+	return &PVCWriter{basePath: basePath, retention: retention}
 }
 
 func (w *PVCWriter) Write(_ context.Context, report *ProvenanceReport) error {
@@ -45,14 +48,41 @@ func (w *PVCWriter) Write(_ context.Context, report *ProvenanceReport) error {
 		return fmt.Errorf("writing report to %s: %w", path, err)
 	}
 
-	// Also write a "latest" symlink/copy for easy access
+	// Also write a "latest" copy for easy access
 	latestPath := filepath.Join(w.basePath, "provenance-latest.json")
 	_ = os.Remove(latestPath)
 	if err := os.WriteFile(latestPath, data, 0o644); err != nil {
 		return fmt.Errorf("writing latest report: %w", err)
 	}
 
+	w.pruneOldReports()
+
 	return nil
+}
+
+func (w *PVCWriter) pruneOldReports() {
+	if w.retention < 0 {
+		return
+	}
+
+	entries, err := os.ReadDir(w.basePath)
+	if err != nil {
+		return
+	}
+
+	cutoff := time.Now().Add(-w.retention)
+	for _, e := range entries {
+		if e.IsDir() || e.Name() == "provenance-latest.json" {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().Before(cutoff) {
+			_ = os.Remove(filepath.Join(w.basePath, e.Name()))
+		}
+	}
 }
 
 // ConfigMapWriter writes reports as Kubernetes ConfigMaps.

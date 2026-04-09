@@ -44,6 +44,9 @@ config:
   reportOutput: "pvc"
   # Filesystem path for PVC-based reports.
   reportPath: /reports
+  # How long to keep old reports. Use Go duration format (168h = 1 week).
+  # Set to "-1" to disable cleanup and keep all reports forever.
+  reportRetention: "168h"
   # ConfigMap name for configmap-based reports.
   reportConfigMap: provenance-report
   # Timeout for registry operations.
