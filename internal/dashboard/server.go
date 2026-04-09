@@ -36,7 +36,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"status":"ok"}`))
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
 // reportEntry is a summary of a report file for the listing API.
@@ -79,7 +79,7 @@ func (s *Server) handleListReports(w http.ResponseWriter, _ *http.Request) {
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(reports)
+	_ = json.NewEncoder(w).Encode(reports)
 }
 
 func (s *Server) handleGetReport(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +96,7 @@ func (s *Server) handleGetReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func (s *Server) loadReport(filename string) (*report.ProvenanceReport, error) {
@@ -113,5 +113,5 @@ func (s *Server) loadReport(filename string) (*report.ProvenanceReport, error) {
 
 func (s *Server) handleIndex(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(indexHTML))
+	_, _ = w.Write([]byte(indexHTML))
 }

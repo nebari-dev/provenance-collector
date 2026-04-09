@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"testing"
 	"time"
 )
@@ -14,7 +13,7 @@ func TestLoadDefaults(t *testing.T) {
 		"PROVENANCE_CHECK_UPDATES", "PROVENANCE_REPORT_OUTPUT",
 		"PROVENANCE_REPORT_PATH", "PROVENANCE_REGISTRY_TIMEOUT",
 	} {
-		os.Unsetenv(key)
+		t.Setenv(key, "")
 	}
 
 	cfg := Load()
