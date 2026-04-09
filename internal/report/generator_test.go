@@ -62,7 +62,7 @@ func TestGeneratorReport(t *testing.T) {
 		},
 		&mockDigestResolver{
 			digests: map[string]string{
-				"nginx:1.27":               "sha256:abc123",
+				"nginx:1.27":              "sha256:abc123",
 				"prom/prometheus:v2.50.0": "sha256:def456",
 			},
 		},

@@ -41,20 +41,20 @@ type Config struct {
 // Load reads configuration from environment variables with sensible defaults.
 func Load() *Config {
 	c := &Config{
-		Namespaces:              splitCSV(os.Getenv("PROVENANCE_NAMESPACES")),
-		ExcludeNamespaces:       splitCSV(os.Getenv("PROVENANCE_EXCLUDE_NAMESPACES")),
-		RegistryAuth:            os.Getenv("PROVENANCE_REGISTRY_AUTH"),
-		VerifySignatures:        envBool("PROVENANCE_VERIFY_SIGNATURES", true),
-		CosignPublicKey:         os.Getenv("PROVENANCE_COSIGN_PUBLIC_KEY"),
-		HelmEnabled:             envBool("PROVENANCE_HELM_ENABLED", true),
-		CheckUpdates:            envBool("PROVENANCE_CHECK_UPDATES", true),
-		ReportOutput:            envDefault("PROVENANCE_REPORT_OUTPUT", "pvc"),
-		ReportPath:              envDefault("PROVENANCE_REPORT_PATH", "/reports"),
-		ReportConfigMap:         envDefault("PROVENANCE_REPORT_CONFIGMAP", "provenance-report"),
+		Namespaces:               splitCSV(os.Getenv("PROVENANCE_NAMESPACES")),
+		ExcludeNamespaces:        splitCSV(os.Getenv("PROVENANCE_EXCLUDE_NAMESPACES")),
+		RegistryAuth:             os.Getenv("PROVENANCE_REGISTRY_AUTH"),
+		VerifySignatures:         envBool("PROVENANCE_VERIFY_SIGNATURES", true),
+		CosignPublicKey:          os.Getenv("PROVENANCE_COSIGN_PUBLIC_KEY"),
+		HelmEnabled:              envBool("PROVENANCE_HELM_ENABLED", true),
+		CheckUpdates:             envBool("PROVENANCE_CHECK_UPDATES", true),
+		ReportOutput:             envDefault("PROVENANCE_REPORT_OUTPUT", "pvc"),
+		ReportPath:               envDefault("PROVENANCE_REPORT_PATH", "/reports"),
+		ReportConfigMap:          envDefault("PROVENANCE_REPORT_CONFIGMAP", "provenance-report"),
 		ReportConfigMapNamespace: envDefault("PROVENANCE_REPORT_CONFIGMAP_NAMESPACE", "default"),
-		RegistryTimeout:         envDuration("PROVENANCE_REGISTRY_TIMEOUT", 30*time.Second),
-		Kubeconfig:              os.Getenv("KUBECONFIG"),
-		ClusterName:             os.Getenv("PROVENANCE_CLUSTER_NAME"),
+		RegistryTimeout:          envDuration("PROVENANCE_REGISTRY_TIMEOUT", 30*time.Second),
+		Kubeconfig:               os.Getenv("KUBECONFIG"),
+		ClusterName:              os.Getenv("PROVENANCE_CLUSTER_NAME"),
 	}
 	return c
 }

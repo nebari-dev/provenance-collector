@@ -42,7 +42,7 @@ func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 // reportEntry is a summary of a report file for the listing API.
 type reportEntry struct {
 	Filename    string               `json:"filename"`
-	GeneratedAt string              `json:"generatedAt"`
+	GeneratedAt string               `json:"generatedAt"`
 	Summary     report.ReportSummary `json:"summary"`
 	ClusterName string               `json:"clusterName,omitempty"`
 }

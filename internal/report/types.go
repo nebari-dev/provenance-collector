@@ -12,21 +12,21 @@ type ProvenanceReport struct {
 
 // ReportMetadata describes when and where the report was generated.
 type ReportMetadata struct {
-	GeneratedAt      time.Time `json:"generatedAt"`
-	CollectorVersion string    `json:"collectorVersion"`
-	ClusterName      string    `json:"clusterName,omitempty"`
-	NamespacesScanned []string `json:"namespacesScanned"`
+	GeneratedAt       time.Time `json:"generatedAt"`
+	CollectorVersion  string    `json:"collectorVersion"`
+	ClusterName       string    `json:"clusterName,omitempty"`
+	NamespacesScanned []string  `json:"namespacesScanned"`
 }
 
 // ImageRecord captures provenance data for a single container image.
 type ImageRecord struct {
-	Image     string       `json:"image"`
-	Digest    string       `json:"digest,omitempty"`
-	Namespace string       `json:"namespace"`
-	Workload  WorkloadRef  `json:"workload"`
+	Image     string         `json:"image"`
+	Digest    string         `json:"digest,omitempty"`
+	Namespace string         `json:"namespace"`
+	Workload  WorkloadRef    `json:"workload"`
 	Signature *SignatureInfo `json:"signature,omitempty"`
-	SBOM      *SBOMInfo    `json:"sbom,omitempty"`
-	Update    *UpdateInfo  `json:"update,omitempty"`
+	SBOM      *SBOMInfo      `json:"sbom,omitempty"`
+	Update    *UpdateInfo    `json:"update,omitempty"`
 }
 
 // WorkloadRef identifies the Kubernetes workload that owns a container.
