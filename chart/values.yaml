@@ -30,6 +30,10 @@ config:
   helmEnabled: true
   # Check registries for newer image/chart versions.
   checkUpdates: true
+  # Skip pre-release versions (alpha, beta, rc) when checking for updates.
+  skipPrerelease: true
+  # Check for SBOM attestations on discovered images.
+  checkSBOM: true
   # Report output type: "pvc" or "configmap".
   reportOutput: "pvc"
   # Filesystem path for PVC-based reports.

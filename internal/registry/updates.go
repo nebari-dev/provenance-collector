@@ -20,12 +20,15 @@ type UpdateChecker interface {
 
 // RegistryUpdateChecker checks registries for newer image tags.
 type RegistryUpdateChecker struct {
-	opts []crane.Option
+	skipPrerelease bool
+	opts           []crane.Option
 }
 
 // NewUpdateChecker creates an UpdateChecker that queries container registries.
-func NewUpdateChecker(opts ...crane.Option) UpdateChecker {
-	return &RegistryUpdateChecker{opts: opts}
+// When skipPrerelease is true, versions with pre-release identifiers (alpha,
+// beta, rc, etc.) are excluded from update results.
+func NewUpdateChecker(skipPrerelease bool, opts ...crane.Option) UpdateChecker {
+	return &RegistryUpdateChecker{skipPrerelease: skipPrerelease, opts: opts}
 }
 
 func (c *RegistryUpdateChecker) Check(ctx context.Context, imageRef string) (*report.UpdateInfo, error) {
@@ -54,6 +57,9 @@ func (c *RegistryUpdateChecker) Check(ctx context.Context, imageRef string) (*re
 	for _, t := range tags {
 		v, err := semver.NewVersion(t)
 		if err != nil {
+			continue
+		}
+		if c.skipPrerelease && v.Prerelease() != "" {
 			continue
 		}
 		versions = append(versions, v)

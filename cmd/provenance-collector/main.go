@@ -101,13 +101,16 @@ func run(ctx context.Context) error {
 	digestResolver := registry.NewDigestResolver(cfg.RegistryTimeout)
 	var updateChecker report.UpdateChecker
 	if cfg.CheckUpdates {
-		updateChecker = registry.NewUpdateChecker()
+		updateChecker = registry.NewUpdateChecker(cfg.SkipPrerelease)
 	}
 	var sigVerifier report.SignatureVerifier
 	if cfg.VerifySignatures {
 		sigVerifier = verify.NewSignatureVerifier(cfg.CosignPublicKey)
 	}
-	sbomDiscoverer := verify.NewSBOMDiscoverer()
+	var sbomDisc report.SBOMDiscoverer
+	if cfg.CheckSBOM {
+		sbomDisc = verify.NewSBOMDiscoverer()
+	}
 
 	// --- Generate report ---
 	slog.Info("generating provenance report")
@@ -121,7 +124,7 @@ func run(ctx context.Context) error {
 		digestResolver,
 		updateChecker,
 		sigVerifier,
-		sbomDiscoverer,
+		sbomDisc,
 	)
 
 	provReport := gen.Generate(ctx, imageInputs, helmSources, nsList)

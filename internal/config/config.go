@@ -22,6 +22,10 @@ type Config struct {
 	HelmEnabled bool
 	// Whether to check for available updates.
 	CheckUpdates bool
+	// Whether to skip pre-release versions (alpha, beta, rc) when checking updates.
+	SkipPrerelease bool
+	// Whether to check for SBOM attestations on images.
+	CheckSBOM bool
 	// Report output type: "pvc" or "configmap".
 	ReportOutput string
 	// File path for PVC-based report output.
@@ -48,6 +52,8 @@ func Load() *Config {
 		CosignPublicKey:          os.Getenv("PROVENANCE_COSIGN_PUBLIC_KEY"),
 		HelmEnabled:              envBool("PROVENANCE_HELM_ENABLED", true),
 		CheckUpdates:             envBool("PROVENANCE_CHECK_UPDATES", true),
+		SkipPrerelease:           envBool("PROVENANCE_SKIP_PRERELEASE", true),
+		CheckSBOM:                envBool("PROVENANCE_CHECK_SBOM", true),
 		ReportOutput:             envDefault("PROVENANCE_REPORT_OUTPUT", "pvc"),
 		ReportPath:               envDefault("PROVENANCE_REPORT_PATH", "/reports"),
 		ReportConfigMap:          envDefault("PROVENANCE_REPORT_CONFIGMAP", "provenance-report"),
