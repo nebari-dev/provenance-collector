@@ -20,7 +20,9 @@ const indexHTML = `<!DOCTYPE html>
   header .cluster { color: var(--muted); font-size: 14px; }
 
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 32px; }
-  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; cursor: pointer; transition: border-color 0.2s; }
+  .stat:hover { border-color: var(--accent); }
+  .stat.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   .stat .value { font-size: 28px; font-weight: 700; }
   .stat .label { font-size: 13px; color: var(--muted); margin-top: 4px; }
   .stat.green .value { color: var(--green); }
@@ -32,8 +34,27 @@ const indexHTML = `<!DOCTYPE html>
   .panel-header h2 { font-size: 16px; font-weight: 600; }
   .panel-body { padding: 0; }
 
+  .filters { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .filters input[type="text"] {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 12px; color: var(--text); font-size: 13px; min-width: 220px;
+    outline: none; transition: border-color 0.2s;
+  }
+  .filters input[type="text"]:focus { border-color: var(--accent); }
+  .filters select {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; color: var(--text); font-size: 13px;
+    outline: none; cursor: pointer; transition: border-color 0.2s;
+  }
+  .filters select:focus { border-color: var(--accent); }
+  .filter-label { font-size: 12px; color: var(--muted); margin-right: -4px; }
+  .filter-reset { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; color: var(--muted); font-size: 12px; cursor: pointer; transition: all 0.2s; margin-left: auto; }
+  .filter-reset:hover { border-color: var(--accent); color: var(--text); }
+
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th { text-align: left; padding: 12px 20px; color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+  th { text-align: left; padding: 12px 20px; color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }
+  th:hover { color: var(--text); }
+  th .sort-arrow { font-size: 10px; margin-left: 4px; }
   td { padding: 12px 20px; border-bottom: 1px solid var(--border); }
   tr:last-child td { border-bottom: none; }
   tr:hover { background: rgba(108,140,255,0.04); }
@@ -57,6 +78,7 @@ const indexHTML = `<!DOCTYPE html>
 
   .mono { font-family: "SF Mono", "Fira Code", monospace; font-size: 13px; }
   .text-muted { color: var(--muted); }
+  .result-count { font-size: 12px; color: var(--muted); padding: 8px 20px; border-bottom: 1px solid var(--border); }
 </style>
 </head>
 <body>
@@ -85,6 +107,8 @@ const indexHTML = `<!DOCTYPE html>
       <h2>Container Images</h2>
       <span class="text-muted" id="image-count"></span>
     </div>
+    <div class="filters" id="image-filters"></div>
+    <div id="image-result-count"></div>
     <div class="panel-body" id="images-table"></div>
   </div>
 
@@ -100,6 +124,10 @@ const indexHTML = `<!DOCTYPE html>
 <script>
 let reports = [];
 let currentReport = null;
+let imageFilters = { search: '', namespace: '', signature: '', sbom: '', update: '' };
+let statFilter = '';
+let imageSortCol = '';
+let imageSortAsc = true;
 
 async function init() {
   try {
@@ -144,7 +172,9 @@ async function selectReport(idx) {
 async function loadReport(filename) {
   const res = await fetch('/api/reports/' + filename);
   currentReport = await res.json();
+  resetFilters();
   renderStats(currentReport);
+  renderFilters(currentReport);
   renderImages(currentReport);
   renderHelm(currentReport);
 
@@ -153,34 +183,208 @@ async function loadReport(filename) {
   document.getElementById('cluster-name').textContent = currentReport.metadata.clusterName ? 'Cluster: ' + currentReport.metadata.clusterName : '';
 }
 
+function resetFilters() {
+  imageFilters = { search: '', namespace: '', signature: '', sbom: '', update: '' };
+  statFilter = '';
+}
+
 function renderStats(r) {
   const s = r.summary;
   const pctSigned = s.uniqueImages ? Math.round(s.signedImages / s.uniqueImages * 100) : 0;
   const pctSbom = s.uniqueImages ? Math.round(s.imagesWithSBOM / s.uniqueImages * 100) : 0;
 
   document.getElementById('stats').innerHTML =
-    stat(s.uniqueImages, 'Unique Images', '') +
-    stat(s.signedImages, 'Signed (' + pctSigned + '%)', pctSigned > 80 ? 'green' : pctSigned > 50 ? 'yellow' : 'red') +
-    stat(s.verifiedImages, 'Verified', s.verifiedImages > 0 ? 'green' : '') +
-    stat(s.imagesWithSBOM, 'With SBOM (' + pctSbom + '%)', pctSbom > 50 ? 'green' : pctSbom > 20 ? 'yellow' : 'red') +
-    stat(s.imagesWithUpdates, 'Updates Available', s.imagesWithUpdates > 0 ? 'yellow' : 'green') +
-    stat(s.totalHelmReleases, 'Helm Releases', '');
+    statCard('all', s.uniqueImages, 'Unique Images', '') +
+    statCard('signed', s.signedImages, 'Signed (' + pctSigned + '%)', pctSigned > 80 ? 'green' : pctSigned > 50 ? 'yellow' : 'red') +
+    statCard('verified', s.verifiedImages, 'Verified', s.verifiedImages > 0 ? 'green' : '') +
+    statCard('sbom', s.imagesWithSBOM, 'With SBOM (' + pctSbom + '%)', pctSbom > 50 ? 'green' : pctSbom > 20 ? 'yellow' : 'red') +
+    statCard('updates', s.imagesWithUpdates, 'Updates Available', s.imagesWithUpdates > 0 ? 'yellow' : 'green') +
+    statCard('helm', s.totalHelmReleases, 'Helm Releases', '');
 }
 
-function stat(value, label, cls) {
-  return '<div class="stat ' + cls + '"><div class="value">' + value + '</div><div class="label">' + label + '</div></div>';
+function statCard(id, value, label, cls) {
+  const active = statFilter === id ? ' active' : '';
+  return '<div class="stat ' + cls + active + '" onclick="toggleStatFilter(\'' + id + '\')" id="stat-' + id + '"><div class="value">' + value + '</div><div class="label">' + label + '</div></div>';
+}
+
+function toggleStatFilter(id) {
+  if (statFilter === id) {
+    statFilter = '';
+  } else {
+    statFilter = id;
+  }
+  // Update active state on cards
+  document.querySelectorAll('.stat').forEach(el => el.classList.remove('active'));
+  if (statFilter) document.getElementById('stat-' + statFilter).classList.add('active');
+
+  // Map stat filter to dropdown filters
+  imageFilters = { search: imageFilters.search, namespace: imageFilters.namespace, signature: '', sbom: '', update: '' };
+  switch (statFilter) {
+    case 'signed': imageFilters.signature = 'signed'; break;
+    case 'verified': imageFilters.signature = 'verified'; break;
+    case 'sbom': imageFilters.sbom = 'yes'; break;
+    case 'updates': imageFilters.update = 'yes'; break;
+  }
+  syncFilterUI();
+  renderImages(currentReport);
+}
+
+function renderFilters(r) {
+  const namespaces = [...new Set((r.images || []).map(img => img.namespace))].sort();
+  const el = document.getElementById('image-filters');
+  el.innerHTML =
+    '<input type="text" id="f-search" placeholder="Search image, workload..." oninput="onFilterChange()">' +
+    '<span class="filter-label">Namespace</span>' +
+    '<select id="f-namespace" onchange="onFilterChange()"><option value="">All</option>' +
+      namespaces.map(ns => '<option value="' + esc(ns) + '">' + esc(ns) + '</option>').join('') +
+    '</select>' +
+    '<span class="filter-label">Signature</span>' +
+    '<select id="f-signature" onchange="onFilterChange()">' +
+      '<option value="">All</option><option value="verified">Verified</option><option value="signed">Signed</option><option value="unsigned">Unsigned</option>' +
+    '</select>' +
+    '<span class="filter-label">SBOM</span>' +
+    '<select id="f-sbom" onchange="onFilterChange()">' +
+      '<option value="">All</option><option value="yes">Has SBOM</option><option value="no">No SBOM</option>' +
+    '</select>' +
+    '<span class="filter-label">Update</span>' +
+    '<select id="f-update" onchange="onFilterChange()">' +
+      '<option value="">All</option><option value="yes">Available</option><option value="no">Current</option>' +
+    '</select>' +
+    '<button class="filter-reset" onclick="clearFilters()">Clear filters</button>';
+}
+
+function syncFilterUI() {
+  const s = document.getElementById('f-search'); if (s) s.value = imageFilters.search;
+  const n = document.getElementById('f-namespace'); if (n) n.value = imageFilters.namespace;
+  const sig = document.getElementById('f-signature'); if (sig) sig.value = imageFilters.signature;
+  const sb = document.getElementById('f-sbom'); if (sb) sb.value = imageFilters.sbom;
+  const u = document.getElementById('f-update'); if (u) u.value = imageFilters.update;
+}
+
+function onFilterChange() {
+  imageFilters.search = (document.getElementById('f-search').value || '').toLowerCase();
+  imageFilters.namespace = document.getElementById('f-namespace').value;
+  imageFilters.signature = document.getElementById('f-signature').value;
+  imageFilters.sbom = document.getElementById('f-sbom').value;
+  imageFilters.update = document.getElementById('f-update').value;
+  statFilter = '';
+  document.querySelectorAll('.stat').forEach(el => el.classList.remove('active'));
+  renderImages(currentReport);
+}
+
+function clearFilters() {
+  resetFilters();
+  syncFilterUI();
+  document.querySelectorAll('.stat').forEach(el => el.classList.remove('active'));
+  renderImages(currentReport);
+}
+
+function filterImages(images) {
+  return images.filter(img => {
+    if (imageFilters.search) {
+      const hay = (img.image + ' ' + img.namespace + ' ' + img.workload.kind + '/' + img.workload.name).toLowerCase();
+      if (!hay.includes(imageFilters.search)) return false;
+    }
+    if (imageFilters.namespace && img.namespace !== imageFilters.namespace) return false;
+    if (imageFilters.signature) {
+      const sig = img.signature;
+      if (imageFilters.signature === 'verified' && !(sig && sig.verified)) return false;
+      if (imageFilters.signature === 'signed' && !(sig && sig.signed)) return false;
+      if (imageFilters.signature === 'unsigned' && sig && sig.signed) return false;
+    }
+    if (imageFilters.sbom) {
+      const has = img.sbom && img.sbom.hasSBOM;
+      if (imageFilters.sbom === 'yes' && !has) return false;
+      if (imageFilters.sbom === 'no' && has) return false;
+    }
+    if (imageFilters.update) {
+      const has = img.update && img.update.updateAvailable;
+      if (imageFilters.update === 'yes' && !has) return false;
+      if (imageFilters.update === 'no' && has) return false;
+    }
+    return true;
+  });
+}
+
+function sortImages(images) {
+  if (!imageSortCol) return images;
+  const sorted = [...images];
+  sorted.sort((a, b) => {
+    let va, vb;
+    switch (imageSortCol) {
+      case 'image': va = a.image; vb = b.image; break;
+      case 'namespace': va = a.namespace; vb = b.namespace; break;
+      case 'workload': va = a.workload.kind + '/' + a.workload.name; vb = b.workload.kind + '/' + b.workload.name; break;
+      case 'signature':
+        va = a.signature ? (a.signature.verified ? 2 : a.signature.signed ? 1 : 0) : -1;
+        vb = b.signature ? (b.signature.verified ? 2 : b.signature.signed ? 1 : 0) : -1;
+        return imageSortAsc ? va - vb : vb - va;
+      case 'sbom':
+        va = a.sbom && a.sbom.hasSBOM ? 1 : 0;
+        vb = b.sbom && b.sbom.hasSBOM ? 1 : 0;
+        return imageSortAsc ? va - vb : vb - va;
+      case 'update':
+        va = a.update && a.update.updateAvailable ? 1 : 0;
+        vb = b.update && b.update.updateAvailable ? 1 : 0;
+        return imageSortAsc ? va - vb : vb - va;
+      default: return 0;
+    }
+    if (typeof va === 'string') {
+      const cmp = va.localeCompare(vb);
+      return imageSortAsc ? cmp : -cmp;
+    }
+    return 0;
+  });
+  return sorted;
+}
+
+function onSortClick(col) {
+  if (imageSortCol === col) {
+    imageSortAsc = !imageSortAsc;
+  } else {
+    imageSortCol = col;
+    imageSortAsc = true;
+  }
+  renderImages(currentReport);
+}
+
+function sortArrow(col) {
+  if (imageSortCol !== col) return '';
+  return '<span class="sort-arrow">' + (imageSortAsc ? ' &#9650;' : ' &#9660;') + '</span>';
 }
 
 function renderImages(r) {
   if (!r.images || r.images.length === 0) {
     document.getElementById('images-table').innerHTML = '<div class="empty"><p>No images discovered</p></div>';
     document.getElementById('image-count').textContent = '';
+    document.getElementById('image-result-count').innerHTML = '';
     return;
   }
-  document.getElementById('image-count').textContent = r.images.length + ' images';
 
-  let html = '<table><thead><tr><th>Image</th><th>Namespace</th><th>Workload</th><th>Signature</th><th>SBOM</th><th>Update</th></tr></thead><tbody>';
-  for (const img of r.images) {
+  const filtered = sortImages(filterImages(r.images));
+  const total = r.images.length;
+  document.getElementById('image-count').textContent = total + ' images';
+
+  const hasFilters = imageFilters.search || imageFilters.namespace || imageFilters.signature || imageFilters.sbom || imageFilters.update;
+  document.getElementById('image-result-count').innerHTML = hasFilters
+    ? '<div class="result-count">Showing ' + filtered.length + ' of ' + total + ' images</div>'
+    : '';
+
+  if (filtered.length === 0) {
+    document.getElementById('images-table').innerHTML = '<div class="empty"><p>No images match the current filters</p></div>';
+    return;
+  }
+
+  let html = '<table><thead><tr>' +
+    '<th onclick="onSortClick(\'image\')">Image' + sortArrow('image') + '</th>' +
+    '<th onclick="onSortClick(\'namespace\')">Namespace' + sortArrow('namespace') + '</th>' +
+    '<th onclick="onSortClick(\'workload\')">Workload' + sortArrow('workload') + '</th>' +
+    '<th onclick="onSortClick(\'signature\')">Signature' + sortArrow('signature') + '</th>' +
+    '<th onclick="onSortClick(\'sbom\')">SBOM' + sortArrow('sbom') + '</th>' +
+    '<th onclick="onSortClick(\'update\')">Update' + sortArrow('update') + '</th>' +
+    '</tr></thead><tbody>';
+
+  for (const img of filtered) {
     const sig = img.signature
       ? (img.signature.verified ? badge('Verified', 'green') : img.signature.signed ? badge('Signed', 'yellow') : badge('Unsigned', 'red'))
       : badge('N/A', 'muted');
