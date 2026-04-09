@@ -36,6 +36,27 @@ func main() {
 func run(ctx context.Context) error {
 	cfg := config.Load()
 
+	retention := cfg.ReportRetention.String()
+	if cfg.ReportRetention < 0 {
+		retention = "disabled"
+	}
+
+	slog.Info("configuration loaded",
+		"namespaces", cfg.Namespaces,
+		"excludeNamespaces", cfg.ExcludeNamespaces,
+		"verifySignatures", cfg.VerifySignatures,
+		"checkUpdates", cfg.CheckUpdates,
+		"updateLevel", cfg.UpdateLevel,
+		"skipPrerelease", cfg.SkipPrerelease,
+		"checkSBOM", cfg.CheckSBOM,
+		"checkProvenance", cfg.CheckProvenance,
+		"helmEnabled", cfg.HelmEnabled,
+		"reportOutput", cfg.ReportOutput,
+		"reportRetention", retention,
+		"registryTimeout", cfg.RegistryTimeout,
+		"clusterName", cfg.ClusterName,
+	)
+
 	// Build Kubernetes client
 	client, err := k8s.NewClient(cfg.Kubeconfig)
 	if err != nil {
