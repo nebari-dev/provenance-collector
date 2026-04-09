@@ -2,7 +2,7 @@
 # Image
 # =============================================================================
 image:
-  repository: ghcr.io/nebari-dev/provenance-collector
+  repository: quay.io/nebari/provenance-collector
   tag: ""  # defaults to Chart appVersion
   pullPolicy: IfNotPresent
 
