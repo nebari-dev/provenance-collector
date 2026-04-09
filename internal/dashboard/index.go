@@ -117,6 +117,31 @@ const indexHTML = `<!DOCTYPE html>
   .pagination button:disabled { opacity: 0.35; cursor: default; }
   .pagination select { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; color: var(--text); font-size: 11px; font-family: var(--font); }
 
+  /* Detail panel */
+  .detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  .detail-overlay.open { opacity: 1; pointer-events: auto; }
+  .detail-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 520px; max-width: 100vw; background: var(--surface); border-left: 1px solid var(--border); z-index: 201; transform: translateX(100%); transition: transform 0.25s ease; overflow-y: auto; }
+  .detail-panel.open { transform: translateX(0); }
+  .detail-close { position: absolute; top: 12px; right: 16px; background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: all 0.15s; }
+  .detail-close:hover { color: var(--text); background: var(--surface-2); }
+  .detail-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); }
+  .detail-header h3 { font-size: 13px; font-weight: 600; word-break: break-all; font-family: var(--mono); line-height: 1.4; }
+  .detail-header .detail-digest { font-size: 11px; color: var(--faint); font-family: var(--mono); margin-top: 4px; word-break: break-all; }
+  .detail-section { padding: 16px 24px; border-bottom: 1px solid var(--border); }
+  .detail-section:last-child { border-bottom: none; }
+  .detail-section h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); font-weight: 600; margin-bottom: 10px; }
+  .detail-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 12px; }
+  .detail-row .label { color: var(--muted); }
+  .detail-row .value { color: var(--text); font-family: var(--mono); font-size: 11px; text-align: right; max-width: 300px; word-break: break-all; }
+  .detail-status { display: flex; align-items: center; gap: 8px; padding: 10px 0; }
+  .detail-status .indicator { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .detail-status .indicator.green { background: var(--green); box-shadow: 0 0 6px rgba(16,185,129,0.4); }
+  .detail-status .indicator.yellow { background: var(--yellow); box-shadow: 0 0 6px rgba(245,158,11,0.4); }
+  .detail-status .indicator.red { background: var(--red); box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+  .detail-status .indicator.muted { background: var(--faint); }
+  .detail-status-text { font-size: 12px; }
+  .detail-status-text .sub { font-size: 11px; color: var(--faint); margin-top: 1px; }
+
   /* Misc */
   .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
   .empty p { margin-top: 4px; font-size: 12px; }
@@ -124,6 +149,7 @@ const indexHTML = `<!DOCTYPE html>
   .mono { font-family: var(--mono); font-size: 11px; }
   .text-muted { color: var(--muted); }
   .result-count { font-size: 11px; color: var(--faint); padding: 6px 20px; border-bottom: 1px solid var(--border); }
+  tr.clickable { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -168,6 +194,12 @@ const indexHTML = `<!DOCTYPE html>
     </div>
     <div class="panel-body" id="helm-table"></div>
   </div>
+</div>
+
+<div class="detail-overlay" id="detail-overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detail-panel">
+  <button class="detail-close" onclick="closeDetail()">&times;</button>
+  <div id="detail-content"></div>
 </div>
 
 <script>
@@ -384,14 +416,16 @@ function renderImages(r) {
     '<th onclick="onSortClick(\'update\')">Update' + sortArrow('update') + '</th>' +
     '</tr></thead><tbody>';
 
-  for (const img of page) {
+  for (let idx = 0; idx < page.length; idx++) {
+    const img = page[idx];
+    const globalIdx = start + idx;
     const sig = img.signature ? (img.signature.verified ? badge('Verified', 'green') : img.signature.signed ? badge('Signed', 'yellow') : badge('Unsigned', 'red')) : badge('N/A', 'muted');
     const prov = img.provenance && img.provenance.hasProvenance ? badge('SLSA', 'purple') : badge('None', 'muted');
     const sbom = img.sbom && img.sbom.hasSBOM ? badge(img.sbom.format.toUpperCase(), 'green') : badge('None', 'muted');
     const update = img.update && img.update.updateAvailable ? badge(img.update.latestInMajor || img.update.newestAvailable, 'yellow') : badge('Current', 'green');
     const digest = img.digest ? '<span class="text-muted" style="font-family:var(--mono);font-size:10px">' + img.digest.substring(7, 19) + '</span>' : '';
 
-    html += '<tr>' +
+    html += '<tr class="clickable" onclick="openDetail(' + JSON.stringify(JSON.stringify(img)) + ')">' +
       '<td><span class="mono">' + esc(img.image) + '</span><br>' + digest + '</td>' +
       '<td>' + esc(img.namespace) + '</td>' +
       '<td style="font-size:11px">' + esc(img.workload.kind) + '/' + esc(img.workload.name) + '</td>' +
@@ -431,6 +465,98 @@ function renderHelm(r) {
   html += '</tbody></table>';
   document.getElementById('helm-table').innerHTML = html;
 }
+
+function openDetail(imgJson) {
+  const img = JSON.parse(imgJson);
+  let html = '<div class="detail-header"><h3>' + esc(img.image) + '</h3>';
+  if (img.digest) html += '<div class="detail-digest">' + esc(img.digest) + '</div>';
+  html += '</div>';
+
+  // Workload
+  html += '<div class="detail-section"><h4>Workload</h4>' +
+    detailRow('Kind', img.workload.kind) +
+    detailRow('Name', img.workload.name) +
+    detailRow('Namespace', img.namespace) +
+    '</div>';
+
+  // Signature
+  html += '<div class="detail-section"><h4>Signature Verification</h4>';
+  if (img.signature) {
+    const s = img.signature;
+    const color = s.verified ? 'green' : s.signed ? 'yellow' : 'red';
+    const label = s.verified ? 'Verified' : s.signed ? 'Signed (unverified)' : 'No signature found';
+    const desc = s.verified ? 'Signature exists and has been verified against the configured public key.'
+      : s.signed ? 'A cosign signature exists but no public key was configured for verification.'
+      : 'No cosign signature was found attached to this image.';
+    html += detailStatus(color, label, desc);
+    if (s.error) html += detailRow('Error', s.error);
+  } else {
+    html += detailStatus('muted', 'Not checked', 'Signature verification was disabled for this collection run.');
+  }
+  html += '</div>';
+
+  // SLSA Provenance
+  html += '<div class="detail-section"><h4>SLSA Provenance</h4>';
+  if (img.provenance && img.provenance.hasProvenance) {
+    html += detailStatus('green', 'Provenance attestation found', 'This image has a SLSA provenance attestation attached via OCI referrers.');
+    html += detailRow('Predicate Type', img.provenance.predicateType);
+  } else if (img.provenance) {
+    html += detailStatus('muted', 'No provenance', 'No SLSA provenance attestation was found in the OCI referrers index.');
+  } else {
+    html += detailStatus('muted', 'Not checked', 'Provenance detection was disabled for this collection run.');
+  }
+  html += '</div>';
+
+  // SBOM
+  html += '<div class="detail-section"><h4>Software Bill of Materials</h4>';
+  if (img.sbom && img.sbom.hasSBOM) {
+    html += detailStatus('green', 'SBOM attached', 'An SBOM attestation was found attached to this image.');
+    html += detailRow('Format', img.sbom.format.toUpperCase());
+  } else if (img.sbom) {
+    html += detailStatus('muted', 'No SBOM', 'No SBOM attestation (SPDX or CycloneDX) was found attached to this image.');
+  } else {
+    html += detailStatus('muted', 'Not checked', 'SBOM detection was disabled for this collection run.');
+  }
+  html += '</div>';
+
+  // Update
+  html += '<div class="detail-section"><h4>Version Status</h4>';
+  if (img.update) {
+    const u = img.update;
+    if (u.updateAvailable) {
+      html += detailStatus('yellow', 'Update available', 'A newer version exists in the registry.');
+      html += detailRow('Current Tag', u.currentTag);
+      if (u.latestInMajor) html += detailRow('Latest (same major)', u.latestInMajor);
+      if (u.newestAvailable) html += detailRow('Newest available', u.newestAvailable);
+    } else {
+      html += detailStatus('green', 'Up to date', 'This image is running the latest available version (at the configured update level).');
+      html += detailRow('Current Tag', u.currentTag);
+    }
+  } else {
+    html += detailStatus('muted', 'Not checked', 'Update checking was disabled for this collection run.');
+  }
+  html += '</div>';
+
+  document.getElementById('detail-content').innerHTML = html;
+  document.getElementById('detail-overlay').classList.add('open');
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-overlay').classList.remove('open');
+  document.getElementById('detail-panel').classList.remove('open');
+}
+
+function detailRow(label, value) {
+  return '<div class="detail-row"><span class="label">' + esc(label) + '</span><span class="value">' + esc(value || '-') + '</span></div>';
+}
+
+function detailStatus(color, label, description) {
+  return '<div class="detail-status"><div class="indicator ' + color + '"></div><div class="detail-status-text"><div>' + esc(label) + '</div><div class="sub">' + esc(description) + '</div></div></div>';
+}
+
+// Close detail on Escape key
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeDetail(); });
 
 function badge(t, c) { return '<span class="badge badge-' + c + '">' + esc(t) + '</span>'; }
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
