@@ -2,10 +2,15 @@ package verify
 
 import (
 	"context"
+	"crypto"
 	"fmt"
+	"os"
 
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/sigstore/cosign/v2/pkg/cosign"
 	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
+	"github.com/sigstore/sigstore/pkg/cryptoutils"
+	"github.com/sigstore/sigstore/pkg/signature"
 
 	"github.com/nebari-dev/provenance-collector/internal/report"
 )
@@ -35,7 +40,61 @@ func (v *CosignVerifier) Verify(ctx context.Context, imageRef string) (*report.S
 		}, nil
 	}
 
-	// Get the signed entity from the registry
+	// If a public key is provided, use full cosign verification.
+	if v.publicKey != "" {
+		return v.verifyWithKey(ctx, ref)
+	}
+
+	// Otherwise, just check for signature existence.
+	return v.checkExistence(ref)
+}
+
+// verifyWithKey performs full key-based cosign signature verification.
+func (v *CosignVerifier) verifyWithKey(ctx context.Context, ref name.Reference) (*report.SignatureInfo, error) {
+	pemBytes, err := os.ReadFile(v.publicKey)
+	if err != nil {
+		return &report.SignatureInfo{
+			Error: fmt.Sprintf("reading public key: %v", err),
+		}, nil
+	}
+
+	pubKey, err := cryptoutils.UnmarshalPEMToPublicKey(pemBytes)
+	if err != nil {
+		return &report.SignatureInfo{
+			Error: fmt.Sprintf("parsing public key: %v", err),
+		}, nil
+	}
+
+	verifier, err := signature.LoadVerifier(pubKey, crypto.SHA256)
+	if err != nil {
+		return &report.SignatureInfo{
+			Error: fmt.Sprintf("loading verifier: %v", err),
+		}, nil
+	}
+
+	opts := &cosign.CheckOpts{
+		SigVerifier: verifier,
+		IgnoreTlog:  true,
+		IgnoreSCT:   true,
+	}
+
+	sigs, _, err := cosign.VerifyImageSignatures(ctx, ref, opts)
+	if err != nil {
+		return &report.SignatureInfo{
+			Error: fmt.Sprintf("verification failed: %v", err),
+		}, nil
+	}
+
+	if len(sigs) == 0 {
+		return &report.SignatureInfo{Signed: false}, nil
+	}
+
+	return &report.SignatureInfo{Signed: true, Verified: true}, nil
+}
+
+// checkExistence checks whether any cosign signature exists for the image
+// without verifying against a specific key.
+func (v *CosignVerifier) checkExistence(ref name.Reference) (*report.SignatureInfo, error) {
 	se, err := ociremote.SignedEntity(ref)
 	if err != nil {
 		return &report.SignatureInfo{
@@ -43,7 +102,6 @@ func (v *CosignVerifier) Verify(ctx context.Context, imageRef string) (*report.S
 		}, nil
 	}
 
-	// Check if signatures exist
 	sigs, err := se.Signatures()
 	if err != nil {
 		return &report.SignatureInfo{
@@ -56,13 +114,5 @@ func (v *CosignVerifier) Verify(ctx context.Context, imageRef string) (*report.S
 		return &report.SignatureInfo{Signed: false}, nil
 	}
 
-	info := &report.SignatureInfo{Signed: true}
-
-	// Full key-based verification would go here. For now, we report existence.
-	if v.publicKey != "" {
-		info.Verified = false
-		info.Error = "key-based verification not yet implemented; signature exists"
-	}
-
-	return info, nil
+	return &report.SignatureInfo{Signed: true}, nil
 }

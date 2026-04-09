@@ -2,6 +2,7 @@ package verify
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -29,13 +30,11 @@ func (d *OCISBOMDiscoverer) Discover(ctx context.Context, imageRef string) (*rep
 		return &report.SBOMInfo{}, nil
 	}
 
-	// Get the signed entity from the registry
 	se, err := ociremote.SignedEntity(ref)
 	if err != nil {
 		return &report.SBOMInfo{}, nil
 	}
 
-	// Check for attached attestations (SBOMs are typically stored as in-toto attestations)
 	atts, err := se.Attestations()
 	if err != nil {
 		return &report.SBOMInfo{}, nil
@@ -46,13 +45,12 @@ func (d *OCISBOMDiscoverer) Discover(ctx context.Context, imageRef string) (*rep
 		return &report.SBOMInfo{HasSBOM: false}, nil
 	}
 
-	// Check attestation predicates for known SBOM types
 	for _, att := range attList {
 		payload, err := att.Payload()
 		if err != nil {
 			continue
 		}
-		format := detectSBOMFormat(string(payload))
+		format := detectSBOMFormat(payload)
 		if format != "" {
 			return &report.SBOMInfo{
 				HasSBOM: true,
@@ -64,11 +62,49 @@ func (d *OCISBOMDiscoverer) Discover(ctx context.Context, imageRef string) (*rep
 	return &report.SBOMInfo{HasSBOM: false}, nil
 }
 
-func detectSBOMFormat(payload string) string {
+// Known in-toto predicate types for SBOM formats.
+const (
+	predicateSPDX      = "https://spdx.dev/Document"
+	predicateCycloneDX = "https://cyclonedx.org/bom"
+)
+
+// inTotoStatement represents the minimal structure of an in-toto attestation
+// needed to extract the predicate type.
+type inTotoStatement struct {
+	PredicateType string          `json:"predicateType"`
+	Predicate     json.RawMessage `json:"predicate"`
+}
+
+// detectSBOMFormat identifies the SBOM format from an attestation payload.
+// It first tries to parse the JSON structure and check the in-toto predicateType,
+// then falls back to content-based detection.
+func detectSBOMFormat(payload []byte) string {
+	var stmt inTotoStatement
+	if err := json.Unmarshal(payload, &stmt); err == nil && stmt.PredicateType != "" {
+		switch {
+		case strings.HasPrefix(stmt.PredicateType, predicateSPDX):
+			return "spdx"
+		case strings.HasPrefix(stmt.PredicateType, predicateCycloneDX):
+			return "cyclonedx"
+		}
+
+		// Check the predicate body for known SBOM markers.
+		if len(stmt.Predicate) > 0 {
+			if f := detectFromContent(string(stmt.Predicate)); f != "" {
+				return f
+			}
+		}
+	}
+
+	// Fallback: scan the raw payload for known markers.
+	return detectFromContent(string(payload))
+}
+
+func detectFromContent(s string) string {
 	switch {
-	case strings.Contains(payload, "https://spdx.dev/Document") || strings.Contains(payload, "SPDXRef-"):
+	case strings.Contains(s, "https://spdx.dev/Document") || strings.Contains(s, "SPDXRef-"):
 		return "spdx"
-	case strings.Contains(payload, "CycloneDX") || strings.Contains(payload, "cyclonedx"):
+	case strings.Contains(s, "CycloneDX") || strings.Contains(s, "cyclonedx"):
 		return "cyclonedx"
 	default:
 		return ""
