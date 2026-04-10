@@ -211,6 +211,7 @@ let imageSortCol = '';
 let imageSortAsc = true;
 let pageSize = 25;
 let currentPage = 0;
+let lastFilteredImages = [];
 
 async function init() {
   try {
@@ -390,6 +391,7 @@ function renderImages(r) {
   }
 
   const all = sortImages(filterImages(r.images));
+  lastFilteredImages = all;
   const total = r.images.length;
   const totalPages = Math.ceil(all.length / pageSize);
   if (currentPage >= totalPages) currentPage = Math.max(0, totalPages - 1);
@@ -425,7 +427,7 @@ function renderImages(r) {
     const update = img.update && img.update.updateAvailable ? badge(img.update.latestInMajor || img.update.newestAvailable, 'yellow') : badge('Current', 'green');
     const digest = img.digest ? '<span class="text-muted" style="font-family:var(--mono);font-size:10px">' + img.digest.substring(7, 19) + '</span>' : '';
 
-    html += '<tr class="clickable" onclick="openDetail(' + JSON.stringify(JSON.stringify(img)) + ')">' +
+    html += '<tr class="clickable" onclick="openDetailIdx(' + globalIdx + ')">' +
       '<td><span class="mono">' + esc(img.image) + '</span><br>' + digest + '</td>' +
       '<td>' + esc(img.namespace) + '</td>' +
       '<td style="font-size:11px">' + esc(img.workload.kind) + '/' + esc(img.workload.name) + '</td>' +
@@ -466,8 +468,11 @@ function renderHelm(r) {
   document.getElementById('helm-table').innerHTML = html;
 }
 
-function openDetail(imgJson) {
-  const img = JSON.parse(imgJson);
+function openDetailIdx(idx) {
+  openDetail(lastFilteredImages[idx]);
+}
+
+function openDetail(img) {
   let html = '<div class="detail-header"><h3>' + esc(img.image) + '</h3>';
   if (img.digest) html += '<div class="detail-digest">' + esc(img.digest) + '</div>';
   html += '</div>';
