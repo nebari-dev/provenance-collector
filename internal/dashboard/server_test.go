@@ -260,6 +260,27 @@ func TestListReports_SortedNewestFirst(t *testing.T) {
 	}
 }
 
+func TestGetReport_Latest(t *testing.T) {
+	dir := setupTestDir(t)
+	srv := NewServer(dir)
+
+	req := httptest.NewRequest("GET", "/api/reports/latest", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var report map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &report); err != nil {
+		t.Fatalf("response is not valid JSON: %v", err)
+	}
+	if _, ok := report["metadata"]; !ok {
+		t.Error("expected metadata in latest report")
+	}
+}
+
 func TestGetReport_EmptyFilename(t *testing.T) {
 	srv := NewServer(t.TempDir())
 	req := httptest.NewRequest("GET", "/api/reports/", nil)

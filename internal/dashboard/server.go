@@ -89,6 +89,11 @@ func (s *Server) handleGetReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// "latest" resolves to provenance-latest.json
+	if filename == "latest" {
+		filename = "provenance-latest.json"
+	}
+
 	data, err := os.ReadFile(filepath.Join(s.reportsDir, filename))
 	if err != nil {
 		http.Error(w, "report not found", http.StatusNotFound)
