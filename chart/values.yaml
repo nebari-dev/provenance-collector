@@ -70,9 +70,17 @@ webUI:
     limits:
       cpu: 200m
       memory: 128Mi
-  # OIDC issuer URL used by the dashboard to validate forwarded bearer tokens
-  # and look up the user's groups via the issuer's /userinfo endpoint. Required
-  # for the "Run Scan" button to be visible; leave empty to disable.
+  # Base URL the dashboard pod uses to call the issuer's /userinfo endpoint and
+  # resolve the caller's groups. Required for the "Run Scan" button to be
+  # visible; leave empty to disable.
+  #
+  # This is the URL the dashboard *calls* — it does not need to match the `iss`
+  # claim inside the user's token. The dashboard never validates `iss` itself;
+  # it forwards the bearer to userinfo and trusts the issuer to accept or
+  # reject it. So in split-horizon setups (external hostname for browsers,
+  # internal cluster DNS for backends) you point this at whichever URL the pod
+  # can actually reach.
+  #
   # Example (Nebari in-cluster Keycloak):
   #   http://keycloak-keycloakx-http.keycloak.svc.cluster.local:8080/realms/nebari
   oidcIssuer: ""

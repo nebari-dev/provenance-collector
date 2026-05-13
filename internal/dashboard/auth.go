@@ -137,6 +137,14 @@ func (a *authenticator) cachePut(h string, id *Identity) {
 	a.cache[h] = cachedIdentity{id: id, expires: time.Now().Add(a.ttl)}
 }
 
+// fetchUserInfo treats the bearer as opaque and delegates validation to the
+// issuer's userinfo endpoint: Keycloak verifies the signature against its own
+// keys and returns claims, or rejects the request. We never inspect or check
+// the token's `iss` claim ourselves, so IssuerURL is just "where the dashboard
+// pod sends userinfo requests" — it does NOT need to equal the `iss` value in
+// the token. This matters in Nebari's split-horizon DNS setup, where tokens
+// minted via the external Keycloak hostname can still be validated by calling
+// the internal cluster-DNS Keycloak service.
 func (a *authenticator) fetchUserInfo(ctx context.Context, token string) (*Identity, error) {
 	url := a.issuerURL + "/protocol/openid-connect/userinfo"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
