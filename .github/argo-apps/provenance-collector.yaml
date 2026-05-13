@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: "file://${GITOPS_DIR}"
     targetRevision: HEAD
-    path: chart
+    path: provenance-collector
     helm:
       releaseName: provenance-test
       valuesObject:
