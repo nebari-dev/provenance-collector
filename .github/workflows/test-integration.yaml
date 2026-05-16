@@ -130,13 +130,17 @@ jobs:
       # Timeline scan-switch coverage (#19): deploy a second workload, trigger
       # another scan, and verify via the dashboard UI that picking each
       # timeline entry actually swaps the images table — not just the stat cards.
+      #
+      # We can't use `busybox` as the sentinel — the sandbox's platform profile
+      # ships `nebari-landing-webapi`, which uses `busybox:1.36` as a sidecar.
+      # That collides with the test's image and the "appeared between scans"
+      # check can't distinguish the two reports. `traefik/whoami` is small,
+      # single-purpose, and not bundled by any pack we ship.
       - name: Deploy second workload (timeline-switch setup)
         run: |
-          # busybox needs an explicit command to stay running.
-          kubectl create deployment busybox \
-            --image=busybox:1.36 \
-            -- sh -c 'sleep 3600'
-          kubectl wait --for=condition=available deployment/busybox --timeout=120s
+          kubectl create deployment timeline-sentinel \
+            --image=traefik/whoami:v1.10.3
+          kubectl wait --for=condition=available deployment/timeline-sentinel --timeout=120s
 
       - name: Run second provenance collection
         run: |
@@ -157,7 +161,7 @@ jobs:
           curl -sf http://localhost:8080/api/reports | jq .
           exit 1
 
-      - name: Verify the two reports differ on the busybox image
+      - name: Verify the two reports differ on the sentinel image
         run: |
           REPORTS=$(curl -sf http://localhost:8080/api/reports)
           NEWEST=$(echo "$REPORTS" | jq -r '.[0].filename')
@@ -165,15 +169,15 @@ jobs:
           echo "Newest: $NEWEST"
           echo "Oldest: $OLDEST"
 
-          # The reports list is sorted DESC by generatedAt; busybox should be in
-          # the newer one only.
+          # The reports list is sorted DESC by generatedAt; the sentinel image
+          # should be in the newer one only.
           NEW_HAS=$(curl -sf "http://localhost:8080/api/reports/$NEWEST" \
-            | jq '[.images[].image] | any(test("busybox"))')
+            | jq '[.images[].image] | any(test("traefik/whoami"))')
           OLD_HAS=$(curl -sf "http://localhost:8080/api/reports/$OLDEST" \
-            | jq '[.images[].image] | any(test("busybox"))')
+            | jq '[.images[].image] | any(test("traefik/whoami"))')
 
-          echo "Newest contains busybox: $NEW_HAS"
-          echo "Oldest contains busybox: $OLD_HAS"
+          echo "Newest contains traefik/whoami: $NEW_HAS"
+          echo "Oldest contains traefik/whoami: $OLD_HAS"
 
           if [ "$NEW_HAS" != "true" ] || [ "$OLD_HAS" != "false" ]; then
             echo "API distinctness check failed — the bug cannot be tested if the"
@@ -192,7 +196,7 @@ jobs:
         working-directory: test/e2e
         env:
           DASHBOARD_URL: http://localhost:8080
-          TIMELINE_NEW_IMAGE: busybox
+          TIMELINE_NEW_IMAGE: traefik/whoami
         run: npx playwright test --reporter=list
 
       # Always upload — videos and traces are recorded on every run, not just
