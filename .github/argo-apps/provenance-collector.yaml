@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: provenance-collector
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: "file://${GITOPS_DIR}"
+    targetRevision: HEAD
+    path: provenance-collector
+    helm:
+      releaseName: provenance-test
+      valuesObject:
+        image:
+          repository: provenance-collector
+          tag: test
+          pullPolicy: Never
+        config:
+          verifySignatures: false
+          checkUpdates: false
+          helmEnabled: true
+        persistence:
+          mode: http
+        webUI:
+          enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
