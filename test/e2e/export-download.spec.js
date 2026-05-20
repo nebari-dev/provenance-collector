@@ -87,22 +87,21 @@ test.describe('Export menu', () => {
     expect(md).toContain('## Container Images');
 
     // One row per image under "## Container Images". Find the table that
-    // follows the heading and count the data rows (skip header + separator).
+    // follows the heading and count the data rows. Skip the header row
+    // (contains "| Image |") and the separator row (matches /^\|[-:|\s]+$/,
+    // i.e. only pipes / dashes / colons / whitespace — covers both `|---|`
+    // and `| --- |` styles).
     const imgSection = md.split('## Container Images')[1];
     expect(imgSection, 'Container Images section must exist').toBeTruthy();
     const imgTable = imgSection.split('## ')[0]; // stop at the next H2 if any
-    const imgDataRows = imgTable
-      .split('\n')
-      .filter((l) => l.startsWith('|') && !l.startsWith('| ---') && !l.includes('| Image |'));
+    const imgDataRows = markdownDataRows(imgTable, '| Image |');
     expect(imgDataRows.length, 'one Markdown image row per image in the source report')
       .toBe(truth.images.length);
 
     if (truth.helmReleases && truth.helmReleases.length > 0) {
       expect(md).toContain('## Helm Releases');
       const helmSection = md.split('## Helm Releases')[1];
-      const helmRows = helmSection
-        .split('\n')
-        .filter((l) => l.startsWith('|') && !l.startsWith('| ---') && !l.includes('| Release |'));
+      const helmRows = markdownDataRows(helmSection, '| Release |');
       expect(helmRows.length, 'one Markdown helm row per release in the source report')
         .toBe(truth.helmReleases.length);
     }
@@ -145,4 +144,15 @@ function csvField(s) {
     return '"' + s.replace(/"/g, '""') + '"';
   }
   return s;
+}
+
+// markdownDataRows returns the data rows of a Markdown table from a section
+// blob, skipping the header (matched by headerNeedle) and the separator row
+// (any line consisting only of pipes, dashes, colons, and whitespace).
+function markdownDataRows(section, headerNeedle) {
+  return section
+    .split('\n')
+    .filter((l) => l.startsWith('|'))
+    .filter((l) => !l.includes(headerNeedle))
+    .filter((l) => !/^\|[-:|\s]+$/.test(l));
 }
