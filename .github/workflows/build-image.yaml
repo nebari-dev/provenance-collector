@@ -41,6 +41,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Required for keyless cosign OIDC signing on release.
+      id-token: write
     steps:
       - uses: actions/checkout@v6
 
@@ -83,6 +85,7 @@ jobs:
           fi
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -91,3 +94,35 @@ jobs:
             VERSION=${{ steps.version.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Attach an SPDX SBOM and a SLSA provenance attestation as OCI
+          # referrers on every build, in both registries. The collector's own
+          # internal/verify/sbom.go and internal/verify/provenance.go look for
+          # these via the OCI referrers API — without them, our own image would
+          # show up as "no SBOM, no provenance" when scanned by us (#29).
+          sbom: true
+          provenance: mode=max
+
+      # Cosign signing is release-only. Every build gets attestations (above),
+      # but we don't sign per-PR / per-main-commit images because those tags
+      # roll over fast and the signatures would litter Rekor. Sign only the
+      # stable release tags so consumers can `cosign verify` against
+      # canonical artifacts.
+      - name: Install cosign
+        if: github.event_name == 'release'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign released images (keyless)
+        if: github.event_name == 'release'
+        env:
+          # Sign by digest, not tag. The build output digest is identical
+          # across registries because it's a content digest; we just point
+          # cosign at the right registry path for each.
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -eu
+          for repo in \
+            "ghcr.io/${{ github.repository }}" \
+            "quay.io/nebari/provenance-collector"; do
+            echo "Signing ${repo}@${DIGEST}"
+            cosign sign --yes "${repo}@${DIGEST}"
+          done
