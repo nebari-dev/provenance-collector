@@ -71,6 +71,30 @@ test('timeline scan-switch updates stat cards AND images table', async ({ page }
   expect(olderHasNewImage, `older report must NOT contain "${NEW_IMAGE_MARKER}"`).toBe(0);
 });
 
+// Timeline cards carry a delta vs the previous (older) scan. With two reports
+// where the newer one added the sentinel image, the newest card should show a
+// "+N" (delta-up) badge equal to the unique-image count growth, and the older
+// card — being the bottom of the timeline — should render no delta badge.
+test('timeline cards show unique-image deltas vs the previous scan', async ({ page }) => {
+  await page.goto(BASE, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.timeline-item');
+
+  const items = page.locator('.timeline-item');
+  await expect(items).toHaveCount(2, { timeout: 10_000 });
+
+  // Newest card has a delta (older neighbor exists) and must be positive,
+  // because the sentinel deploy added at least one unique image.
+  const newestDelta = items.nth(0).locator('.delta');
+  await expect(newestDelta, 'newest card must render a delta').toHaveCount(1);
+  await expect(newestDelta).toHaveClass(/\bdelta-up\b/);
+  const newestDeltaValue = parseInt(await newestDelta.getAttribute('data-delta') || '0', 10);
+  expect(newestDeltaValue, 'newest delta should be a positive image gain').toBeGreaterThan(0);
+
+  // Oldest card has no neighbor to diff against — no delta badge rendered.
+  const olderDelta = items.nth(1).locator('.delta');
+  await expect(olderDelta, 'oldest card must render no delta').toHaveCount(0);
+});
+
 // selectMaxPageSize bumps the table page size to 100 via the pagination
 // dropdown if it is rendered. The dropdown only appears when the report has
 // more rows than the current page size, so on small reports this is a no-op.

@@ -116,6 +116,12 @@ const indexHTML = `<!DOCTYPE html>
   .timeline-item .date { font-size: 12px; font-weight: 600; }
   .timeline-item .time { font-size: 11px; color: var(--muted); }
   .timeline-item .count { font-size: 10px; color: var(--faint); margin-top: 2px; }
+  /* Delta vs the previous (older) scan — only rendered when a previous scan
+     exists and the unique-image count differs. */
+  .timeline-item .delta { display: inline-block; margin-top: 4px; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; letter-spacing: 0.02em; }
+  .timeline-item .delta-up { background: rgba(16,185,129,0.12); color: var(--green); }
+  .timeline-item .delta-down { background: rgba(239,68,68,0.12); color: var(--red); }
+  .timeline-item .delta-zero { background: rgba(136,136,160,0.08); color: var(--faint); }
 
   /* Pagination */
   .pagination { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
@@ -376,10 +382,26 @@ function showEmpty() {
 function renderTimeline() {
   document.getElementById('timeline').innerHTML = reports.map((r, i) => {
     const d = new Date(r.generatedAt);
+    // reports[] is sorted DESC by generatedAt, so the older scan to compare
+    // against is the next index up (i + 1). The oldest card has no neighbor
+    // to diff against; render no delta there.
+    const prev = reports[i + 1];
+    let deltaHTML = '';
+    if (prev) {
+      const delta = (r.summary.uniqueImages || 0) - (prev.summary.uniqueImages || 0);
+      const cls = delta > 0 ? 'delta-up' : delta < 0 ? 'delta-down' : 'delta-zero';
+      const text = delta > 0 ? '+' + delta : String(delta);
+      deltaHTML = '<div class="delta ' + cls + '" data-delta="' + delta + '" title="' + (
+        delta > 0 ? delta + ' new unique image(s) vs previous scan' :
+        delta < 0 ? Math.abs(delta) + ' image(s) gone vs previous scan' :
+        'no change vs previous scan'
+      ) + '">' + text + '</div>';
+    }
     return '<div class="timeline-item' + (i === 0 ? ' active' : '') + '" onclick="selectReport(' + i + ')" id="tl-' + i + '">' +
       '<div class="date">' + d.toLocaleDateString() + '</div>' +
       '<div class="time">' + d.toLocaleTimeString() + '</div>' +
-      '<div class="count">' + r.summary.totalImages + ' images</div></div>';
+      '<div class="count">' + r.summary.totalImages + ' images</div>' +
+      deltaHTML + '</div>';
   }).join('');
 }
 
