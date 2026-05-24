@@ -56,36 +56,7 @@ audit submissions, or ad-hoc `jq`.
 It exists because answering *"what is actually running on this cluster, where did it come from, and is it signed?"*
 should not require manual auditing.
 
-## Architecture
-
-```mermaid
-flowchart TD
-    Cron[Kubernetes CronJob<br/>default: daily 06:00 UTC]
-    ImgDisc[Image Discovery<br/>pods + workload owners]
-    HelmDisc[Helm Discovery<br/>via Helm SDK]
-    Enrich[Enrichment<br/>digest resolve · cosign verify<br/>SBOM · SLSA · update check]
-    Report[(JSON Provenance Report)]
-    Dash[Web Dashboard<br/>+ JSON API · owns the PVC]
-    CM[(ConfigMap<br/>persistence.mode=configmap)]
-    PVC[(Shared PVC<br/>persistence.mode=pvc)]
-    Grafana[Grafana<br/>via Infinity datasource]
-
-    Cron --> ImgDisc
-    Cron --> HelmDisc
-    ImgDisc --> Enrich
-    Enrich --> Report
-    HelmDisc --> Report
-    Report -->|HTTP upload, default| Dash
-    Report -.-> CM
-    Report -.-> PVC
-    PVC -.-> Dash
-    Dash --> Grafana
-```
-
-The collector reads the Kubernetes API for inventory and the registry for enrichment, then ships the report to
-the dashboard's internal upload endpoint (default), a ConfigMap, or a shared PVC depending on `persistence.mode`
-(see [Storage modes](#storage-modes)). It does not push to remote services or mutate cluster state outside the
-configured sink.
+> Curious how the pieces fit together? See the [architecture diagram](#architecture) further down.
 
 ## What It Does
 
@@ -132,6 +103,13 @@ webUI:
     timelineDeltas: false             # opt-in; show +N/-N badges between scans
 ```
 
+Setting `nebariapp.enabled: true` renders a `NebariApp` custom resource that registers the pack with the
+[Nebari Operator](https://github.com/nebari-dev/nebari-operator). The operator wires up routing, OIDC, and
+landing-page registration so the web dashboard is reachable through the Nebari gateway under
+`https://<hostname>` and surfaced on the [Nebari Landing page](https://github.com/nebari-dev/nebari-landing).
+Leave it `false` for clusters that aren't running the operator. Full field reference:
+[docs/nebariapp-crd-reference.md](docs/nebariapp-crd-reference.md).
+
 Verify:
 
 ```bash
@@ -142,9 +120,6 @@ kubectl get application provenance-collector -n argocd
 kubectl get cronjob -n provenance-system
 kubectl get pods -n provenance-system -l app.kubernetes.io/name=provenance-collector
 ```
-
-The operator wires routing (Envoy Gateway), OIDC (Keycloak), and surfaces the dashboard on the
-[Nebari Landing](https://github.com/nebari-dev/nebari-landing) page — no extra config needed beyond `hostname`.
 
 ### Standalone install (without the Nebari Operator)
 
@@ -453,17 +428,6 @@ nebariapp:
   enabled: false
 ```
 
-See [examples/](examples/) for complete deployment examples (standalone, Nebari, ArgoCD).
-
-### Nebari integration
-
-Setting `nebariapp.enabled: true` renders a `NebariApp` custom resource that registers the pack with the
-[Nebari Operator](https://github.com/nebari-dev/nebari-operator). The operator wires up routing, OIDC, and
-landing-page registration so the web dashboard is reachable through the Nebari gateway under
-`https://<hostname>` and surfaced on the [Nebari Landing page](https://github.com/nebari-dev/nebari-landing).
-Leave it `false` for clusters that aren't running the operator. Full field reference:
-[docs/nebariapp-crd-reference.md](docs/nebariapp-crd-reference.md).
-
 ### Private registries
 
 When images are pulled from a private registry (e.g. Harbor, Artifactory, GHCR with a token), provide a
@@ -564,6 +528,37 @@ chart/                        Helm chart (CronJob + RBAC + Dashboard + NebariApp
 examples/                     Deployment examples (standalone, Nebari, ArgoCD)
 docs/                         Configuration, report schema, NebariApp CRD reference
 ```
+
+## Architecture
+
+```mermaid
+flowchart TD
+    Cron[Kubernetes CronJob<br/>default: daily 06:00 UTC]
+    ImgDisc[Image Discovery<br/>pods + workload owners]
+    HelmDisc[Helm Discovery<br/>via Helm SDK]
+    Enrich[Enrichment<br/>digest resolve · cosign verify<br/>SBOM · SLSA · update check]
+    Report[(JSON Provenance Report)]
+    Dash[Web Dashboard<br/>+ JSON API · owns the PVC]
+    CM[(ConfigMap<br/>persistence.mode=configmap)]
+    PVC[(Shared PVC<br/>persistence.mode=pvc)]
+    Grafana[Grafana<br/>via Infinity datasource]
+
+    Cron --> ImgDisc
+    Cron --> HelmDisc
+    ImgDisc --> Enrich
+    Enrich --> Report
+    HelmDisc --> Report
+    Report -->|HTTP upload, default| Dash
+    Report -.-> CM
+    Report -.-> PVC
+    PVC -.-> Dash
+    Dash --> Grafana
+```
+
+The collector reads the Kubernetes API for inventory and the registry for enrichment, then ships the report to
+the dashboard's internal upload endpoint (default), a ConfigMap, or a shared PVC depending on `persistence.mode`
+(see [Storage modes](#storage-modes)). It does not push to remote services or mutate cluster state outside the
+configured sink.
 
 ## Contributing
 
