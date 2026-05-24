@@ -116,6 +116,12 @@ const indexHTML = `<!DOCTYPE html>
   .timeline-item .date { font-size: 12px; font-weight: 600; }
   .timeline-item .time { font-size: 11px; color: var(--muted); }
   .timeline-item .count { font-size: 10px; color: var(--faint); margin-top: 2px; }
+  /* Delta vs the previous (older) scan — only rendered when a previous scan
+     exists and the unique-image count differs. */
+  .timeline-item .delta { display: inline-block; margin-top: 4px; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; letter-spacing: 0.02em; }
+  .timeline-item .delta-up { background: rgba(16,185,129,0.12); color: var(--green); }
+  .timeline-item .delta-down { background: rgba(239,68,68,0.12); color: var(--red); }
+  .timeline-item .delta-zero { background: rgba(136,136,160,0.08); color: var(--faint); }
 
   /* Pagination */
   .pagination { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
@@ -262,9 +268,15 @@ let imageSortAsc = true;
 let pageSize = 25;
 let currentPage = 0;
 let lastFilteredImages = [];
+// Feature flags from /api/me. Defaults are all-off to match the chart's
+// opt-in posture; initConfig() overwrites this with the server's response.
+let features = { timelineDeltas: false };
 
 async function init() {
-  initAuth();
+  // Await the config fetch so renderTimeline() below sees the correct feature
+  // flags on first paint. The call is fast and fail-quiet — defaults stand
+  // if it errors.
+  await initConfig();
   try {
     const res = await fetch('/api/reports');
     reports = await res.json();
@@ -276,10 +288,12 @@ async function init() {
   }
 }
 
-// initAuth resolves whether the calling user may trigger a scan and shows
-// the Run Scan button if so. Fail-quiet: if /api/me errors, the button stays
-// hidden — better silent than wrongly inviting non-admins to a 403.
-async function initAuth() {
+// initConfig resolves both the scan-button visibility (auth) and the
+// dashboard feature flags from /api/me in a single fetch. Fail-quiet: if
+// /api/me errors, the scan button stays hidden and feature flags stay at
+// their defaults (all-off) — better silent than wrongly inviting non-admins
+// to a 403 or rendering a feature the operator chose not to enable.
+async function initConfig() {
   try {
     const res = await fetch('/api/me');
     if (!res.ok) return;
@@ -287,7 +301,10 @@ async function initAuth() {
     if (me && me.canRunScan) {
       document.getElementById('btn-scan').style.display = 'inline-flex';
     }
-  } catch (e) { /* keep button hidden */ }
+    if (me && me.features) {
+      features = Object.assign(features, me.features);
+    }
+  } catch (e) { /* keep defaults */ }
 }
 
 let scanPollTimer = null;
@@ -376,10 +393,28 @@ function showEmpty() {
 function renderTimeline() {
   document.getElementById('timeline').innerHTML = reports.map((r, i) => {
     const d = new Date(r.generatedAt);
+    // reports[] is sorted DESC by generatedAt, so the older scan to compare
+    // against is the next index up (i + 1). The oldest card has no neighbor
+    // to diff against; render no delta there. Also gated on the
+    // timelineDeltas feature flag — off by default in the chart, enable via
+    // webUI.features.timelineDeltas: true.
+    const prev = reports[i + 1];
+    let deltaHTML = '';
+    if (features.timelineDeltas && prev) {
+      const delta = (r.summary.uniqueImages || 0) - (prev.summary.uniqueImages || 0);
+      const cls = delta > 0 ? 'delta-up' : delta < 0 ? 'delta-down' : 'delta-zero';
+      const text = delta > 0 ? '+' + delta : String(delta);
+      deltaHTML = '<div class="delta ' + cls + '" data-delta="' + delta + '" title="' + (
+        delta > 0 ? delta + ' new unique image(s) vs previous scan' :
+        delta < 0 ? Math.abs(delta) + ' image(s) gone vs previous scan' :
+        'no change vs previous scan'
+      ) + '">' + text + '</div>';
+    }
     return '<div class="timeline-item' + (i === 0 ? ' active' : '') + '" onclick="selectReport(' + i + ')" id="tl-' + i + '">' +
       '<div class="date">' + d.toLocaleDateString() + '</div>' +
       '<div class="time">' + d.toLocaleTimeString() + '</div>' +
-      '<div class="count">' + r.summary.totalImages + ' images</div></div>';
+      '<div class="count">' + r.summary.totalImages + ' images</div>' +
+      deltaHTML + '</div>';
   }).join('');
 }
 
